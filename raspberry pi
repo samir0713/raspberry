@@ -1,0 +1,90 @@
+ Importar librerías
+import os
+import argparse
+import cv2
+import time
+import numpy as np
+import sys
+import glob
+import importlib.util
+parser = argparse.ArgumentParser()
+parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
+                    default='INTENTO2')
+parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
+                    default='converted_model.tflite')
+parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
+                    default='/home/pi/tflite1/INTENTO2/labelmap.txt')
+parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
+                    default=0.5)
+parser.add_argument('--image', help='Name of the single image to perform detection on. To run detection on multiple images, use --imagedir',
+                    default=None)
+parser.add_argument('--imagedir', help='Name of the folder containing images to perform detection on. Folder must contain only images.',
+                    default='FOTOSPRUEBA')
+parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
+                    action='store_true')
+def load_labels(filename):
+  with open(filename, 'r') as f:
+    return [line.strip() for line in f.readlines()]
+args = parser.parse_args 
+MODEL_NAME = args.modeldir
+GRAPH_NAME = args.graph
+LABELMAP_NAME = args.labels
+min_conf_threshold = float(argsthreshold)
+use_TPU = args.edgetpu
+IM_NAME = args.image
+if (IM_NAME and IM_DIR):
+    print('por favor solo especificar una imagen o carpeta')
+    sys.exit()
+if (not IM_NAME and not IM_DIR):
+    IM_NAME = '403.jpg'
+pkg = importlib.util.find_spec('tflite_runtime')
+if pkg:
+    from tflite_runtime.interpreter import Interpreter   
+else:
+    from tensorflowlite.python.interpreter import Interprete
+CWD_PATH = os.getcwd()
+if IM_DIR:
+    PATH_TO_IMAGES = os.path.join(CWD_PATH,IM_DIR)
+    images = glob.glob(PATH_TO_IMAGES + '/*')
+elif IM_NAME:
+    PATH_TO_IMAGES = os.path.join(CWD_PATH,IM_NAME)
+    images = glob.glob(PATH_TO_IMAGES)
+PATH_TO_CKPT = os.path.join(CWD_PATH,MODEL_NAME,GRAPH_NAME)
+PATH_TO_LABELS = os.path.join(CWD_PATH,MODEL_NAME,LABELMAP_NAME)
+with open(PATH_TO_LABELS, 'r') as f:
+    labels = [line.strip() for line in f.readlines()]
+interpreter = Interpreter(modelpath=PATH_TO_CKPT)
+interpreterallocate_tensors()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+height = input_details[0]['shape'][1]
+width = input_details[0]['shape'][2]
+floating_model = (input_details[0]['dtype'] == np.float32)
+input_mean = 255
+input_std = 255
+for image_path in images:
+    image = cv2.imread(image_path)
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image_resized = cv2.resize(image_rgb, (height, width))
+    input_data = np.expanddims(image_resized, axis=0) 
+    interpreter.set_tensor(input_details[0]['index'],input_data)
+    start_time = time.time()
+    interpreter.invoke()
+    stop_time = time.time()
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    results = np.squeeze(output_data)
+    top_k = results.argsort()[:-1][:1]
+    labels = load_labels(args.labels)        
+    for i in top_k:
+      if floating_model:
+        print('{:08.6f} {}'.format(float(results[i]*100), labels[i]))
+      else:
+        print('{:08.6f}%: {}'.format(float(results[i] / 255.0), labels[i]))
+    print('time: {:.3f}ms'.format((stop_time - start_time) * 1000))
+    label = '%s: %.3f%%' % (labels[i], float(results[i]*100))
+    cv2.putText(image, label, (5, 25),
+    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 25), 2)
+    cv2.imshow("Imagen", image)
+    cv2.waitKey(0)
+    if cv2.waitKey(0) == ord('q'):
+cv2.destroyAllWindows()
